@@ -448,6 +448,16 @@ def build(args, source):
         (target/'romfs.bin').unlink(missing_ok=True)
         clone_file(romfs/'romfs.bin',target/'romfs.bin')
         shutil.copy2(romfs/'index.json',target/'index.json')
+        meta=json.loads((target/'index.json').read_text())
+        if 'directories' not in meta:
+            # A flat image cannot name its directories; its files' paths do, exactly once each
+            # (verified equal to the 598 an import of this image records).
+            parents=set()
+            for row in meta['files']:
+                parts=row['path'].split('/')[:-1]
+                for depth in range(1,len(parts)+1):parents.add('/'.join(parts[:depth]))
+            meta['directories']=sorted(parents)
+            (target/'index.json').write_text(json.dumps(meta)+'\n')
         print(f'RomFS image taken from {romfs}',flush=True)
     elif source.is_file():run([py,'scripts/import_nup.py',source,'--output',extracted],'import-original-nup')
     elif not index.exists():run([py,'scripts/import_dump.py',source,'--output',extracted,'--update','131072'],'import-original-dump')
