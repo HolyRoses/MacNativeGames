@@ -128,6 +128,17 @@ def listed_shader_file(tree, shared):
     print(f'Metal libraries: {len(keys)} shaders the list uses (OOT_SHADER_SUBSET=listed; unset compiles every one)',flush=True)
     return str(path)
 
+def romfs_variants(expected):
+    """Every RomFS image this port accepts: the pinned one, then the recorded alternates."""
+    return [expected['romfs'], *expected.get('romfs_alternates', [])]
+
+def romfs_pin(sha, size, expected):
+    """The accepted variant a rebuilt RomFS matches, or None."""
+    for variant in romfs_variants(expected):
+        if variant['sha256'] == sha and variant['size'] == size:
+            return variant
+    return None
+
 def verify_shader_resources(tree):
     """Check every prepared variant/library and bind both manifests into the normal build record."""
     seed=tree/'build/shader-seed/oot';libraries=tree/'build/shader-libs'
@@ -135,7 +146,7 @@ def verify_shader_resources(tree):
     metadata=json.loads((seed/'seed-manifest.json').read_text())
     chain=(GAME/'third_party/d2r_gfx/gfx/nvn/dmsh_chain.h').read_text().split('"')[1]
     expected=json.loads((GAME/'assets/expected-v131072.json').read_text())
-    if (metadata.get('version')!='oot' or metadata.get('source_romfs_sha256')!=expected['romfs']['sha256'] or
+    if (metadata.get('version')!='oot' or metadata.get('source_romfs_sha256') not in {v['sha256'] for v in romfs_variants(expected)} or
         metadata.get('translator_sha256')!=sha(GAME/'prebuilt/macos-arm64/totk_xlate') or
         metadata.get('chain')!=chain or not metadata.get('all_default') or
         metadata.get('nvn_depth_mode')!='minus-w' or not metadata.get('corpus_shaders') or
@@ -275,7 +286,10 @@ def package_app(work,tree,out,game_data_mode='app',game_data_folder=None):
         repo=GAME.parents[1]
         if game_data_folder==repo or repo in game_data_folder.parents:raise ValueError('game library must remain outside the source checkout')
         expected=json.loads((GAME/'assets/expected-v131072.json').read_text())
-        build_app.place_library_image(tree,'oot','oot',game_data_folder,expected_romfs=expected['romfs'])
+        manifest=json.loads((tree/'extracted/oot/romfs/index.json').read_text())
+        romfs=romfs_pin(manifest['romfs_sha256'],manifest['romfs_size'],expected)
+        if not romfs:raise ValueError('unsupported RomFS image')
+        build_app.place_library_image(tree,'oot','oot',game_data_folder,expected_romfs=romfs)
     elif game_data_mode=='app':
         logs=work/'logs';logs.mkdir(exist_ok=True)
         bundle=build_app.data_bundle(tree,'oot',logs,bundle_id='org.macnativegames.oot',display_version='131072')
@@ -383,7 +397,7 @@ def build(args, source):
         with (logs/(name+'.log')).open('w') as f:subprocess.run([str(x)for x in cmd],cwd=cwd,env=env,stdout=f,stderr=subprocess.STDOUT,check=True)
     py=work/'venv/bin/python'
     if not py.exists():run([sys.executable,'-m','venv',work/'venv'],'python-environment',work)
-    dependencies=subprocess.run([py,'-c','import lz4.block,capstone,zbic'],capture_output=True)
+    dependencies=subprocess.run([py,'-c','import lz4.block,capstone,zbic,zstandard'],capture_output=True)
     if dependencies.returncode:run([py,'-m','pip','install','-r',GAME/'requirements.txt'],'python-dependencies',work)
     extracted=tree/'extracted/oot';index=extracted/'romfs/index.json'
     expected=json.loads((GAME/'assets/expected-v131072.json').read_text())
@@ -393,7 +407,10 @@ def build(args, source):
     for name,digest in expected['exefs_sha256'].items():
         if sha(code/name)!=digest:raise ValueError('unsupported or damaged original ExeFS: '+name)
     rom=json.loads(index.read_text())
-    if rom['romfs_sha256']!=expected['romfs']['sha256'] or rom['romfs_size']!=expected['romfs']['size']:raise ValueError('unsupported RomFS image')
+    romfs=romfs_pin(rom['romfs_sha256'],rom['romfs_size'],expected)
+    if not romfs:raise ValueError('unsupported RomFS image: '+rom['romfs_sha256']+' ('+str(rom['romfs_size'])+' bytes); accepted: '
+                                  +', '.join(v['sha256']+' ('+str(v['size'])+' bytes)' for v in romfs_variants(expected)))
+    if romfs['sha256']!=expected['romfs']['sha256']:print('RomFS matches a recorded variant: '+romfs.get('note','alternate'),flush=True)
     if 'directories' not in rom:
         folder=source/'updates/131072/romfs'
         if not folder.is_dir():raise ValueError('directory metadata missing from original dump')

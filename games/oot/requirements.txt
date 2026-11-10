@@ -2,3 +2,5 @@
 lz4==4.4.5
 capstone==5.0.9
 zbic==1.0.1.post1
+zstandard==0.25.0      # third_party/nup/nup/read.py decompresses the package's zstd members with it
+                       # (unlike build_app.py's own zstd reads, which use Python 3.14's compression.zstd)
