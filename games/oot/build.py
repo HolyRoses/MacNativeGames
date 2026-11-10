@@ -430,7 +430,26 @@ def build(args, source):
     if dependencies.returncode:run([py,'-m','pip','install','-r',GAME/'requirements.txt'],'python-dependencies',work)
     extracted=tree/'extracted/oot';index=extracted/'romfs/index.json'
     expected=json.loads((GAME/'assets/expected-v131072.json').read_text())
-    if source.is_file():run([py,'scripts/import_nup.py',source,'--output',extracted],'import-original-nup')
+    romfs=Path(getattr(args,'romfs_image','') or '').expanduser()
+    if str(args.romfs_image or '') and romfs:
+        # --romfs-image: the game data arrives as a finished image plus its index (a reference dump), so
+        # nothing is packed. The ExeFS is code, identical for every copy of this version: reuse the one the
+        # work folder already has rather than requiring the package that produced it.
+        romfs=romfs.resolve()
+        for name in ('romfs.bin','index.json'):
+            if not (romfs/name).is_file():raise ValueError(f'--romfs-image {romfs} has no {name}')
+        if not (extracted/'exefs').is_dir():
+            # The code has to come from somewhere: take it from the package, then replace the RomFS it
+            # packed. Its ExeFS is checked against expected-v131072.json below like any other build's.
+            if source.is_file():run([py,'scripts/import_nup.py',source,'--output',extracted],'import-original-nup')
+            elif (source/'updates/131072/romfs').is_dir():run([py,'scripts/import_dump.py',source,'--output',extracted,'--update','131072'],'import-original-dump')
+            else:raise ValueError('--romfs-image has no ExeFS to use: the work folder has none and '+str(source)+' does not provide one')
+        target=extracted/'romfs';target.mkdir(parents=True,exist_ok=True)
+        (target/'romfs.bin').unlink(missing_ok=True)
+        clone_file(romfs/'romfs.bin',target/'romfs.bin')
+        shutil.copy2(romfs/'index.json',target/'index.json')
+        print(f'RomFS image taken from {romfs}',flush=True)
+    elif source.is_file():run([py,'scripts/import_nup.py',source,'--output',extracted],'import-original-nup')
     elif not index.exists():run([py,'scripts/import_dump.py',source,'--output',extracted,'--update','131072'],'import-original-dump')
     code=extracted/'exefs'
     for name,digest in expected['exefs_sha256'].items():

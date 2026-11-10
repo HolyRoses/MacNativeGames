@@ -2689,6 +2689,10 @@ def parse_args(argv):
     ap.add_argument('-k', '--keys', type=Path, help='your prod.keys (an XCI or NSP; a Switch 2 dump folder needs none)')
     ap.add_argument('-o', '--out', type=Path, help=f'the app or IPA to write (default depends on --platform; next to the game file)')
     ap.add_argument('--work', type=Path, help='work folder (default: TOTK_build next to the game file)')
+    ap.add_argument('--romfs-image', type=Path, metavar='DIR',
+                    help='Ocarina of Time only: a folder holding romfs.bin and index.json to use as the game data instead of packing it from the '
+                         'package/NUP. The ExeFS already extracted in the work folder is reused, so one normal build has to have run first. '
+                         'Lets a build use a reference image the package no longer provides.')
     ap.add_argument('--mod', type=Path, metavar='FOLDER',
                     help='a mod folder prepared before the build: its exefs/ IPS / IPS32 / pchtxt patches for the main '
                          'module are merged into the code before it is rewritten (its romfs/ goes in with '
