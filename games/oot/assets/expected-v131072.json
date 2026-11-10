@@ -17,5 +17,12 @@
     "main.patched.bin": "2573dd00668fad679d7d631655167ba2786a32ec908e9c2c81056ab54fa73570",
     "sdk.patched.bin": "7f77e8fb46d582a34b313947d7f9b898f26e7b555b06743c88538df519ffb5f8",
     "subsdk0.patched.bin": "7ce5b0eb7e3894a8354d0eb6157b52cb5a4cc9cbff0b32d252a86ac03d3758d4"
-  }
+  },
+  "romfs_alternates": [
+    {
+      "sha256": "ce2f34fe896c7230d4f98a393cd30570a469507fcf4482026549485c04994671",
+      "size": 26237712396,
+      "note": "second retail v131072 dump (same ExeFS as the pin; RomFS 2112 bytes larger). NUP toc sha256 c60730417594ad6d37ccf35385f885fa44a587e52cf949585c11b8ef83331a63, 186587 files / 598 directories"
+    }
+  ]
 }
